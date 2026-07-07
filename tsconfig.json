@@ -10,11 +10,19 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowJs": true,
+
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+
     "outDir": "./dist",
     "baseUrl": "./",
+
     "paths": {
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*", "prisma/**/*"]
+  "include": [
+    "src/**/*",
+    "prisma/**/*"
+  ]
 }
