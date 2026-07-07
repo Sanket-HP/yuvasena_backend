@@ -1,0 +1,222 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  SUPER_ADMIN
+  STATE_ADMIN
+  DISTRICT_ADMIN
+  TALUKA_ADMIN
+  MEMBER
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  ASSIGNED
+  RESOLVED
+  CLOSED
+}
+
+enum PublishStatus {
+  DRAFT
+  PUBLISHED
+  SCHEDULED
+}
+
+enum MediaType {
+  PHOTO
+  VIDEO
+}
+
+model User {
+  id                 String       @id @default(uuid())
+  email              String       @unique
+  phone              String       @unique
+  password           String
+  name               String
+  role               Role         @default(MEMBER)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  
+  memberProfile      Member?
+  assignedComplaints Complaint[]  @relation("AssignedAdmin")
+  auditLogs          AuditLog[]
+  verifiedAttendance Attendance[] @relation("VerifiedByAdmin")
+}
+
+model Member {
+  id              String         @id @default(uuid())
+  userId          String         @unique
+  membershipNo    String         @unique
+  status          String         @default("PENDING") // PENDING, APPROVED, SUSPENDED
+  qrCodeUrl       String?
+  bloodGroup      String
+  occupation      String
+  address         String
+  profilePhotoUrl String?
+  facebookUrl     String?
+  twitterUrl      String?
+  instagramUrl    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  districtId      String
+  district        District       @relation(fields: [districtId], references: [id])
+  
+  talukaId        String
+  taluka          Taluka         @relation(fields: [talukaId], references: [id])
+  
+  boothId         String?
+  booth           Booth?         @relation(fields: [boothId], references: [id])
+
+  registrations   Registration[]
+  attendance      Attendance[]
+  complaints      Complaint[]
+}
+
+model District {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  state     String   @default("Maharashtra")
+  talukas   Taluka[]
+  members   Member[]
+}
+
+model Taluka {
+  id         String   @id @default(uuid())
+  name       String
+  districtId String
+  district   District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  booths     Booth[]
+  members    Member[]
+
+  @@unique([name, districtId])
+}
+
+model Booth {
+  id       String   @id @default(uuid())
+  boothNo  String
+  name     String
+  talukaId String
+  taluka   Taluka   @relation(fields: [talukaId], references: [id], onDelete: Cascade)
+  members  Member[]
+
+  @@unique([boothNo, talukaId])
+}
+
+model Event {
+  id               String         @id @default(uuid())
+  title            String
+  description      String
+  date             DateTime
+  location         String
+  latitude         Float?
+  longitude        Float?
+  maxRegistrations Int?
+  bannerUrl        String?
+  qrCodeUrl        String?
+  status           String         @default("UPCOMING") // UPCOMING, ONGOING, COMPLETED, CANCELLED
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  registrations    Registration[]
+  attendance       Attendance[]
+}
+
+model Registration {
+  id           String   @id @default(uuid())
+  memberId     String
+  eventId      String
+  registeredAt DateTime @default(now())
+
+  member       Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, eventId])
+}
+
+model Attendance {
+  id           String   @id @default(uuid())
+  memberId     String
+  eventId      String
+  attendedAt   DateTime @default(now())
+  verifiedById String?
+
+  member       Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  verifiedBy   User?    @relation("VerifiedByAdmin", fields: [verifiedById], references: [id])
+
+  @@unique([memberId, eventId])
+}
+
+model Complaint {
+  id              String          @id @default(uuid())
+  title           String
+  description     String
+  status          ComplaintStatus @default(SUBMITTED)
+  imageUrls       String[]        @default([])
+  reply           String?
+  memberId        String
+  member          Member          @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  assignedAdminId String?
+  assignedAdmin   User?           @relation("AssignedAdmin", fields: [assignedAdminId], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Gallery {
+  id        String    @id @default(uuid())
+  title     String
+  url       String
+  type      MediaType @default(PHOTO)
+  albumName String
+  createdAt DateTime  @default(now())
+}
+
+model News {
+  id            String        @id @default(uuid())
+  title         String
+  content       String
+  category      String
+  imageUrl      String?
+  isTrending    Boolean       @default(false)
+  publishStatus PublishStatus @default(DRAFT)
+  publishAt     DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model Notification {
+  id             String    @id @default(uuid())
+  title          String
+  body           String
+  targetAudience String    @default("ALL") // ALL, MEMBERS, ADMINS, DISTRICT_ADMINS
+  districtId     String?
+  scheduleTime   DateTime?
+  sentStatus     Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+}
+
+model Settings {
+  id    String @id @default(uuid())
+  key   String @unique
+  value String
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  details   String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
